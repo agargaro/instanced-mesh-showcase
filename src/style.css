@@ -1,0 +1,271 @@
+:root {
+  --fg: #e8edf5;
+  --muted: #8a96a8;
+  --accent: #ff9a3c;
+  --panel: rgba(8, 12, 20, 0.72);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--fg);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #000;
+  z-index: 10;
+  transition: opacity 0.4s;
+}
+
+#loading.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#loading.error p {
+  color: #ff6b6b;
+  max-width: 80vw;
+  text-align: center;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 220px;
+  pointer-events: none;
+}
+
+#hud h1 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+#hud h1 span {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+#backend {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+#stats {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 14px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+#stats dt {
+  color: var(--muted);
+}
+
+#stats dd {
+  margin: 0;
+  text-align: right;
+}
+
+#score {
+  margin: 8px 0 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.links {
+  margin: 6px 0 0;
+  pointer-events: auto;
+}
+
+.links a {
+  color: var(--fg);
+}
+
+#hint {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#crosshair {
+  position: fixed;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 1.5px solid rgba(255, 154, 60, 0.85);
+  border-radius: 50%;
+  pointer-events: none;
+  left: -100px;
+  top: -100px;
+}
+
+#notice {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  margin: 0;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+#notice.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#crosshair.hidden {
+  display: none;
+}
+
+.lil-gui.root {
+  --width: 260px;
+}
+
+#intro {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px 14vh;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+}
+
+#intro[hidden] {
+  display: none;
+}
+
+#intro h2 {
+  margin: 0;
+  font-size: clamp(34px, 7vw, 72px);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+#intro p {
+  margin: 6px 0 0;
+}
+
+#intro .count {
+  font-size: clamp(20px, 3.4vw, 34px);
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+#intro .calls {
+  font-size: clamp(16px, 2.4vw, 24px);
+  font-variant-numeric: tabular-nums;
+}
+
+#intro .features {
+  font-size: clamp(12px, 1.6vw, 16px);
+  color: var(--muted);
+}
+
+#intro .skip {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+body.intro #hud,
+body.intro #hint,
+body.intro #crosshair,
+body.intro .lil-gui.root {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#hud,
+#hint,
+.lil-gui.root {
+  transition: opacity 0.6s;
+}
+
+@media (max-width: 640px) {
+  #hud {
+    top: 8px;
+    left: 8px;
+    min-width: 0;
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+
+  #hud .links,
+  #hud h1 span {
+    display: none;
+  }
+
+  #hint {
+    font-size: 11px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .lil-gui.root {
+    --width: 180px;
+  }
+}

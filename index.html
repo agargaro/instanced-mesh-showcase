@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>InstancedMesh2 · Asteroid Field</title>
+    <meta name="description" content="Fly through 250,000 asteroids drawn in a handful of draw calls: runtime meshoptimizer LODs, BVH culling and raycasting, on WebGPU and WebGL." />
+    <meta name="theme-color" content="#04060d" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="__SITE_URL__/" />
+    <meta property="og:title" content="InstancedMesh2 · Asteroid Field" />
+    <meta property="og:description" content="Fly through 250,000 asteroids drawn in a handful of draw calls: runtime LODs, BVH culling and raycasting, on WebGPU and WebGL." />
+    <meta property="og:image" content="__SITE_URL__/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="InstancedMesh2 · Asteroid Field" />
+    <meta name="twitter:description" content="250,000 asteroids, a handful of draw calls. Runtime LODs, BVH culling and raycasting on WebGPU and WebGL." />
+    <meta name="twitter:image" content="__SITE_URL__/og-image.jpg" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="loading">
+      <div class="spinner"></div>
+      <p id="loading-text">Generating asteroids…</p>
+    </div>
+    <div id="intro" hidden>
+      <h2>InstancedMesh2</h2>
+      <p class="count"><span id="intro-count">0</span> asteroids</p>
+      <p class="calls"><span id="intro-calls">0</span> draw calls</p>
+      <p class="features">runtime LODs · BVH culling · raycasting · WebGPU &amp; WebGL</p>
+      <p class="skip">tap or press any key to play</p>
+    </div>
+    <div id="hud">
+      <h1>InstancedMesh2 <span>asteroid field</span></h1>
+      <p id="backend">…</p>
+      <dl id="stats"></dl>
+      <p id="score"></p>
+      <p class="links">
+        <a href="https://github.com/agargaro/instanced-mesh" target="_blank" rel="noopener">GitHub</a> ·
+        <a href="https://www.npmjs.com/package/@three.ez/instanced-mesh" target="_blank" rel="noopener">npm</a>
+      </p>
+    </div>
+    <p id="hint"></p>
+    <p id="notice"></p>
+    <div id="crosshair"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
