@@ -255,9 +255,13 @@ body.intro .lil-gui.root {
     padding: 8px 10px;
   }
 
-  #hud .links,
   #hud h1 span {
     display: none;
+  }
+
+  #hud .links a {
+    display: inline-block;
+    padding: 4px 0;
   }
 
   #hint {
