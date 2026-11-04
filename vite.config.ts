@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 
@@ -16,5 +17,14 @@ function siteUrl(): Plugin {
 
 export default defineConfig({
   plugins: [siteUrl()],
-  build: { target: 'es2022', chunkSizeWarningLimit: 2000 }
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 2000,
+    rolldownOptions: {
+      input: {
+        asteroidField: resolve(import.meta.dirname, 'index.html'),
+        bakedArmies: resolve(import.meta.dirname, 'armies/index.html')
+      }
+    }
+  }
 });

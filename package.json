@@ -2,7 +2,7 @@
   "name": "instanced-mesh-showcase",
   "private": true,
   "version": "0.1.0",
-  "description": "Asteroid field showcase for @three.ez/instanced-mesh on WebGLRenderer and WebGPURenderer.",
+  "description": "Asteroid field and baked-army showcases for @three.ez/instanced-mesh on WebGLRenderer and WebGPURenderer.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@three.ez/instanced-mesh": "1.0.0-beta.0",
+    "@three.ez/instanced-mesh": "1.0.0-beta.1",
+    "@three.ez/simplify-geometry": "0.0.1",
     "meshoptimizer": "1.2.0",
     "stats-gl": "4.2.3",
     "three": "0.186.1",
