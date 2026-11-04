@@ -1,0 +1,45 @@
+#hud {
+  max-width: min(340px, calc(100vw - 24px));
+}
+
+#hud .summary {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+#hud .summary a {
+  color: var(--fg);
+  pointer-events: auto;
+}
+
+#renderer-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+#renderer {
+  flex: 1;
+  padding: 4px 6px;
+  color: var(--fg);
+  background: #1a2330;
+  border: 1px solid #34404f;
+  border-radius: 6px;
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  #hud {
+    max-width: calc(100vw - 16px);
+  }
+
+  #hud .summary {
+    display: none;
+  }
+}

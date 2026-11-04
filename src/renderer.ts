@@ -4,6 +4,7 @@ import { prepareInstancedRenderer } from '@three.ez/instanced-mesh';
 
 export type RendererOption = 'webgpu' | 'fallback' | 'webgl';
 export type AnyRenderer = WebGLRenderer | WebGPURenderer;
+export type Backend = 'webgl' | 'webgpu' | 'webgl-fallback';
 
 export const rendererLabels: Record<RendererOption, string> = {
   webgpu: 'WebGPURenderer',
@@ -26,6 +27,12 @@ export function isWebGPURenderer(renderer: AnyRenderer): renderer is WebGPURende
   return (renderer as { isWebGPURenderer?: boolean }).isWebGPURenderer === true;
 }
 
+/** Actual backend: `webgl` for `WebGLRenderer`, `webgpu` or `webgl-fallback` for `WebGPURenderer`. */
+export function readBackend(renderer: AnyRenderer): Backend {
+  if (!isWebGPURenderer(renderer)) return 'webgl';
+  return (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true ? 'webgpu' : 'webgl-fallback';
+}
+
 export async function createRenderer(option: RendererOption): Promise<{ renderer: AnyRenderer; label: string }> {
   const renderer: AnyRenderer = option === 'webgl'
     ? new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
@@ -33,12 +40,10 @@ export async function createRenderer(option: RendererOption): Promise<{ renderer
 
   await prepareInstancedRenderer(renderer);
 
+  const backend = readBackend(renderer);
   let label = 'WebGLRenderer · WebGL2';
-  if (isWebGPURenderer(renderer)) {
-    const native = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true;
-    if (native) label = 'WebGPURenderer · WebGPU';
-    else label = option === 'fallback' ? 'WebGPURenderer · WebGL2 (forceWebGL)' : 'WebGPURenderer · WebGL2 fallback (no WebGPU)';
-  }
+  if (backend === 'webgpu') label = 'WebGPURenderer · WebGPU';
+  else if (backend === 'webgl-fallback') label = option === 'fallback' ? 'WebGPURenderer · WebGL2 (forceWebGL)' : 'WebGPURenderer · WebGL2 fallback (no WebGPU)';
 
   renderer.info.autoReset = false;
   return { renderer, label };
