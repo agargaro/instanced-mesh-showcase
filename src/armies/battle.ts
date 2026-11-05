@@ -1,6 +1,6 @@
 import { performanceRangeLOD } from '@three.ez/simplify-geometry';
 import type { SimplifyParams } from '@three.ez/simplify-geometry';
-import { Color, LoopOnce, LoopRepeat, Matrix4 } from 'three';
+import { LoopOnce, LoopRepeat } from 'three';
 import type { BufferGeometry, Scene } from 'three';
 import { InstancedMesh2, reduceSkinInfluences } from '@three.ez/instanced-mesh';
 import { Random } from '../random.js';
@@ -14,7 +14,7 @@ import { createScenery } from './scenery.js';
 /** Clips of the Universal Animation Library baked for both monsters, in clip-index order. */
 const CLIPS = [
   'Sword_Idle', 'Idle_Loop', 'Idle_Talking_Loop', 'Spell_Simple_Idle_Loop', 'Dance_Loop', 'Walk_Loop', 'Jog_Fwd_Loop', 'Sprint_Loop',
-  'Jump_Loop', 'Sword_Attack', 'Punch_Jab', 'Punch_Cross', 'Hit_Chest', 'Hit_Head', 'Death01'
+  'Sword_Attack', 'Punch_Jab', 'Punch_Cross', 'Hit_Chest', 'Hit_Head', 'Death01'
 ] as const;
 type ClipName = (typeof CLIPS)[number];
 
@@ -30,7 +30,6 @@ const CELEBRATION = clip('Dance_Loop');
 const WALK = clip('Walk_Loop');
 const JOG = clip('Jog_Fwd_Loop');
 const SPRINT = clip('Sprint_Loop');
-const CHEER = clip('Jump_Loop');
 const GUARD = clip('Sword_Idle');
 const DEATH = clip('Death01');
 /** Skin layer of each army: red Imps, blue Puglins. */
@@ -139,8 +138,13 @@ const MARCH = 1;
 const FIGHT = 2;
 const STAGGER = 3;
 const DEAD = 4;
-const _matrix = new Matrix4();
-const _tint = new Color();
+/**
+ * A monster whose position moved less than this (meters) and whose heading turned less than {@link YAW_EPSILON} (radians) since
+ * its matrix was last written keeps that matrix, and stays out of the next upload: a few millimeters at most, unseen. A heading
+ * under the threshold writes only the translation, without the sine and cosine of the rotation.
+ */
+const POSITION_EPSILON = 1e-3;
+const YAW_EPSILON = 2e-3;
 /** Push of the last {@link separation} calls, per axis. */
 let pushX = 0;
 let pushZ = 0;
@@ -175,6 +179,8 @@ export interface BattleStats {
   alive: number[];
   /** Matrices written in the last frame. */
   moving: number;
+  /** Matrices written with a new rotation in the last frame; the others only moved their translation. */
+  rotated: number;
   /** Monsters in melee (attacking or reeling) in the last frame. */
   fighting: number;
   /** Monsters that decided in the last frame. */
@@ -205,18 +211,17 @@ export interface Battle {
   /** One entry per monster type. */
   skinning: SkinningInfo[];
   update: (delta: number) => void;
-  /** Starts the battle, if it has not started. */
-  charge: () => void;
   /** Revives everyone at home and starts again. */
   restart: () => void;
-  /** Every monster standing still cheers once. */
-  cheer: () => void;
   countLevels: (out: LevelStats) => LevelStats;
 }
 
 /** One army: its mesh and, per monster, home, position, velocity, heading, state, foe and playback. */
 interface Army {
   mesh: InstancedMesh2;
+  matrices: MatrixStorage;
+  /** Heading last written to each matrix. */
+  drawnYaw: Float32Array;
   durations: number[];
   /** Direction from the middle of the field toward the army (-1 Imps, +1 Puglins). */
   side: number;
@@ -284,7 +289,7 @@ class BattleState {
     autoBattle: true, lethality: 0.4, fade: 0.25, timeScale: 1, blobShadows: true, nearestFrames: true, thinkInterval: 4
   };
 
-  public readonly stats: BattleStats = { alive: [0, 0], moving: 0, fighting: 0, thinking: 0, changes: 0, updateTime: 0 };
+  public readonly stats: BattleStats = { alive: [0, 0], moving: 0, rotated: 0, fighting: 0, thinking: 0, changes: 0, updateTime: 0 };
   public readonly focus: CameraFocus = { x: 0, z: 0 };
   private _fightX = 0;
   private _fightZ = 0;
@@ -298,11 +303,15 @@ class BattleState {
   private _nearestFrames = true;
   /** Fighting frames so far: picks the slice of each army that decides. */
   private _tick = 0;
+  /** Matrices of the blob shadows, one per monster at the offset of its army. */
+  private readonly _blobMatrices: MatrixStorage;
 
   public constructor(
     private readonly _armies: Army[], private readonly _blobs: InstancedMesh2, private readonly _marks: GroundMarks,
     private readonly _random: Random
-  ) { }
+  ) {
+    this._blobMatrices = matricesOf(_blobs);
+  }
 
   /** Everyone alive, visible and at home, idling; the battle starts after a short delay. */
   public reset(): void {
@@ -338,15 +347,6 @@ class BattleState {
     }
   }
 
-  public cheer(): void {
-    for (let a = 0; a < this._armies.length; a++) {
-      const army = this._armies[a];
-      for (let id = 0; id < army.total; id++) {
-        if (army.state[id] === HOLD) this.play(army, id, CHEER, -this._random.range(0, 0.6), 1.2, true);
-      }
-    }
-  }
-
   public update(delta: number): void {
     const start = performance.now();
     const step = delta * this.settings.timeScale;
@@ -354,12 +354,13 @@ class BattleState {
     this._fightX = 0;
     this._fightZ = 0;
     this.stats.moving = 0;
+    this.stats.rotated = 0;
     this.stats.fighting = 0;
     this.stats.thinking = 0;
     this.stats.changes = 0;
     this._blobs.visible = this.settings.blobShadows;
     if (this.settings.nearestFrames !== this._nearestFrames) this.applyNearestFrames();
-    if (this._state === 'waiting' && this._clock >= this._stateEnd && this.settings.autoBattle) this.start();
+    if (this._state === 'waiting' && this._clock >= this._stateEnd) this.start();
     if (this._state === 'celebrating' && this._clock >= this._stateEnd && this.settings.autoBattle) this.reset();
 
     const [first, second] = this._armies;
@@ -427,7 +428,7 @@ class BattleState {
       army.retargetAt[id] = 0;
       army.mesh.setVisibilityAt(id, true);
       this._blobs.setVisibilityAt(army.offset + id, true);
-      this.place(army, id, 0);
+      this.place(army, id, 0, true);
       this.rest(army, id);
     }
   }
@@ -518,7 +519,7 @@ class BattleState {
       const face = army.faceYaw[id];
       if (!Number.isNaN(face)) army.yaw[id] = turn(army.yaw[id], face, TURN_RATE * step);
       else if (vx * vx + vz * vz > 0.04) army.yaw[id] = turn(army.yaw[id], Math.atan2(vx, vz), TURN_RATE * step);
-      this.place(army, id, 0);
+      this.place(army, id, 0, false);
       if (state === FIGHT || state === STAGGER) {
         this.stats.fighting++;
         this._fightX += army.x[id];
@@ -609,7 +610,7 @@ class BattleState {
     army.yaw[id] += this._random.range(-0.6, 0.6);
     this._marks.mark(army.x[id], army.z[id], 1.3, 0.8);
     army.mesh.playAnimationAt(id, DEATH, 0, this._random.range(0.8, 1.2), LoopOnce, this.settings.fade);
-    this.place(army, id, 0);
+    this.place(army, id, 0, false);
     this.stats.changes++;
   }
 
@@ -656,7 +657,7 @@ class BattleState {
         continue;
       }
       this._blobs.setVisibilityAt(army.offset + id, false);
-      this.place(army, id, -sink * SINK_DEPTH);
+      this.place(army, id, -sink * SINK_DEPTH, false);
     }
   }
 
@@ -669,13 +670,47 @@ class BattleState {
     }
   }
 
-  /** Writes the matrix of a monster (and of its blob shadow, on the ground) at its position and heading, `y` up. */
-  private place(army: Army, id: number, y: number): void {
+  /**
+   * Moves the matrix of a monster (and of its blob shadow, on the ground) to its position and heading, `y` up. Monsters only turn
+   * about y and never change scale, so only the elements that change are written: the translation, and the four elements of the
+   * rotation once the heading drifted past {@link YAW_EPSILON}. A monster that barely moved and turned keeps its matrix. Blob
+   * shadows never rotate: they only write their translation. `force` writes the rotation and translation (after a reset).
+   */
+  private place(army: Army, id: number, y: number, force: boolean): void {
+    const matrices = army.matrices;
+    const array = matrices.array;
+    const offset = id * 16;
     const x = army.x[id];
     const z = army.z[id];
-    army.mesh.setMatrixAt(id, composeMatrix(x, y, z, army.yaw[id], army.scale[id]));
-    if (y === 0) this._blobs.setMatrixAt(army.offset + id, composeMatrix(x, 0, z, 0, army.scale[id]));
+    const yaw = army.yaw[id];
+    const dx = x - array[offset + 12];
+    const dy = y - array[offset + 13];
+    const dz = z - array[offset + 14];
+    const moved = force || dx * dx + dy * dy + dz * dz > POSITION_EPSILON * POSITION_EPSILON;
+    const turned = force || Math.abs(yaw - army.drawnYaw[id]) > YAW_EPSILON;
+    if (!moved && !turned) return;
+    if (turned) {
+      const scale = army.scale[id];
+      const cos = Math.cos(yaw) * scale;
+      const sin = Math.sin(yaw) * scale;
+      array[offset] = cos;
+      array[offset + 2] = -sin;
+      array[offset + 8] = sin;
+      array[offset + 10] = cos;
+      army.drawnYaw[id] = yaw;
+      this.stats.rotated++;
+    }
+    array[offset + 12] = x;
+    array[offset + 13] = y;
+    array[offset + 14] = z;
+    matrices.markDirty(id);
     this.stats.moving++;
+    if (y !== 0 || !moved) return;
+    const blobs = this._blobMatrices;
+    const blob = army.offset + id;
+    blobs.array[blob * 16 + 12] = x;
+    blobs.array[blob * 16 + 14] = z;
+    blobs.markDirty(blob);
   }
 }
 
@@ -725,14 +760,8 @@ export async function createBattle(count: number, backend: string, seed = 5): Pr
     update: (delta) => {
       battle.update(delta);
     },
-    charge: () => {
-      battle.start();
-    },
     restart: () => {
       battle.reset();
-    },
-    cheer: () => {
-      battle.cheer();
     },
     countLevels: (out) => {
       out.instances.fill(0);
@@ -751,8 +780,9 @@ function createArmy(
   asset: MonsterAsset, levels: ArmyLevels, skin: number, backend: string, count: number, side: number, offset: number, columns: number,
   rows: number, hash: SpatialHash, random: Random
 ): Army {
+  const mesh = createArmyMesh(asset, levels, skin, backend, count);
   const army: Army = {
-    mesh: createArmyMesh(asset, levels, skin, backend, count), durations: asset.durations, side, offset, total: count,
+    mesh, matrices: matricesOf(mesh), drawnYaw: new Float32Array(count), durations: asset.durations, side, offset, total: count,
     homeX: new Float32Array(count), homeZ: new Float32Array(count),
     scale: new Float32Array(count), x: new Float32Array(count), z: new Float32Array(count), vx: new Float32Array(count),
     vz: new Float32Array(count), yaw: new Float32Array(count), desiredX: new Float32Array(count), desiredZ: new Float32Array(count),
@@ -771,6 +801,7 @@ function createArmy(
     army.homeZ[id] = (row + random.range(0.15, 0.85) - rows / 2) * HOME_CELL;
     army.scale[id] = random.range(0.9, 1.12);
     instance.position.set(army.homeX[id], 0, army.homeZ[id]);
+    instance.scale.setScalar(army.scale[id]);
   });
   return army;
 }
@@ -985,11 +1016,20 @@ function turn(from: number, to: number, limit: number): number {
   return from + Math.max(-limit, Math.min(limit, difference));
 }
 
-/** Rotation about y, uniform scale and position, in a reused matrix. */
-function composeMatrix(x: number, y: number, z: number, yaw: number, scale: number): Matrix4 {
-  const cos = Math.cos(yaw) * scale;
-  const sin = Math.sin(yaw) * scale;
-  return _matrix.set(cos, 0, sin, x, 0, scale, 0, y, -sin, 0, cos, z, 0, 0, 0, 1);
+/**
+ * The matrices of a mesh as `InstancedMesh2` stores them at runtime: 16 floats per instance, column-major, and the marks of the
+ * changes the next draw uploads. `matricesBuffer` is typed as `InstanceDataBuffer`, which declares neither. Writing only the
+ * elements that change skips composing and copying whole matrices (`setMatrixAt`): for 10,000 monsters and their shadows,
+ * 0.2 to 0.55 ms per frame instead of about 1 ms. Safe here because the meshes have no entity array and no BVH to keep in sync.
+ */
+interface MatrixStorage {
+  readonly array: Float32Array;
+  markDirty: (id: number) => void;
+}
+
+function matricesOf(mesh: InstancedMesh2): MatrixStorage {
+  if (mesh.instances !== null || mesh.bvh !== null) throw new Error('Direct matrix writes would leave the entities or the BVH stale.');
+  return mesh.matricesBuffer as unknown as MatrixStorage;
 }
 
 function placeBlobs(blobs: InstancedMesh2, army: Army): void {

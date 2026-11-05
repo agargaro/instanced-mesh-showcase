@@ -41,12 +41,13 @@ const MERGED_ATTRIBUTES = ['position', 'normal', 'uv', 'skinIndex', 'skinWeight'
 export interface MonsterKind {
   name: string;
   model: string;
-  textures: readonly string[];
+  /** Base-color variants, one per skin layer: an image file, or `null` for the base-color map exported in the model. */
+  textures: ReadonlyArray<string | null>;
 }
 
 export const KINDS: readonly MonsterKind[] = [
   { name: 'Imp', model: 'Imp.glb', textures: ['T_Imp_BaseColor_1.png', 'T_Imp_BaseColor_2.png', 'T_Imp_BaseColor_3.png'] },
-  { name: 'Puglin', model: 'Puglin.glb', textures: ['T_Puglin_BaseColor_1.png', 'T_Puglin_BaseColor_2.png', 'T_Puglin_BaseColor_3.png'] }
+  { name: 'Puglin', model: 'Puglin.glb', textures: ['T_Puglin_BaseColor_1.png', 'T_Puglin_BaseColor_2.png', null] }
 ];
 
 /** One monster type (Quaternius Bestiary): merged geometry and its levels, the rig, the exported material, its three skins and the clips baked once. */
@@ -73,20 +74,28 @@ export async function loadMonsters(options: MonsterOptions): Promise<MonsterAsse
   const [library, models, variants] = await Promise.all([
     loader.loadAsync(`${assetBase}UAL1_Standard.glb`),
     Promise.all(KINDS.map(async (kind) => loader.loadAsync(`${assetBase}${kind.model}`))),
-    Promise.all(KINDS.map(async (kind) => Promise.all(kind.textures.map(async (file) => textures.loadAsync(`${assetBase}${file}`)))))
+    Promise.all(KINDS.map(async (kind) => Promise.all(kind.textures.map(async (file) => (file === null ? null : textures.loadAsync(`${assetBase}${file}`))))))
   ]);
   const mannequinPelvis = pelvisHeight(library.scene);
 
   return Promise.all(KINDS.map(async (kind, index) => createMonster(kind, models[index], variants[index], library, mannequinPelvis, options)));
 }
 
-async function createMonster(kind: MonsterKind, model: GLTF, variants: Texture[], library: GLTF, mannequinPelvis: number, options: MonsterOptions): Promise<MonsterAsset> {
+async function createMonster(
+  kind: MonsterKind, model: GLTF, files: Array<Texture | null>, library: GLTF, mannequinPelvis: number, options: MonsterOptions
+): Promise<MonsterAsset> {
   const root = model.scene;
   const meshes: SkinnedMesh[] = [];
   root.traverse((object) => {
     if ((object as Partial<SkinnedMesh>).isSkinnedMesh === true) meshes.push(object as SkinnedMesh);
   });
   const source = meshes[0];
+  const material = source.material as MeshStandardMaterial;
+  const variants = files.map((file) => {
+    if (file !== null) return file;
+    if (material.map === null) throw new Error(`${kind.model} has no base-color map.`);
+    return material.map;
+  });
   const geometry = mergeSkinnedGeometries(meshes);
   for (let i = 0, l = meshes.length; i < l; i++) meshes[i].removeFromParent();
   root.updateMatrixWorld(true);
@@ -125,7 +134,7 @@ async function createMonster(kind: MonsterKind, model: GLTF, variants: Texture[]
     geometry: base,
     lods,
     shadowLod,
-    material: source.material as MeshStandardMaterial,
+    material,
     skins,
     bake,
     durations
