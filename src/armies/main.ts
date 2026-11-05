@@ -97,11 +97,9 @@ async function main(): Promise<void> {
 
   const gui = new GUI({ title: 'Baked armies' });
   if (touch) gui.close();
-  const actions = { charge: battle.charge, restart: battle.restart, cheer: battle.cheer };
+  const actions = { restart: battle.restart };
   const behavior = gui.addFolder('Battle');
-  behavior.add(actions, 'charge');
   behavior.add(actions, 'restart');
-  behavior.add(actions, 'cheer');
   behavior.add(battle.settings, 'autoBattle').name('auto battle');
   behavior.add(battle.settings, 'lethality', 0.05, 1, 0.01).name('hit chance');
   behavior.add(battle.settings, 'fade', 0, 1, 0.05).name('crossfade (s)');
@@ -114,7 +112,7 @@ async function main(): Promise<void> {
   let updateDebug: (() => void) | null = null;
   if (debug) {
     const levelStats = { instances: new Array<number>(LEVEL_COUNT).fill(0), triangles: new Array<number>(LEVEL_COUNT).fill(0) };
-    const data = { monsters: battle.count.toLocaleString('en-US'), imps: 0, puglins: 0, fighting: 0, moving: 0, thinking: 0, changes: 0, update: '' };
+    const data = { monsters: battle.count.toLocaleString('en-US'), imps: 0, puglins: 0, fighting: 0, moving: 0, rotated: 0, thinking: 0, changes: 0, update: '' };
     const drawn: Record<string, string> = { total: '' };
     const statsFolder = gui.addFolder('Data');
     statsFolder.add(data, 'monsters').disable();
@@ -122,6 +120,7 @@ async function main(): Promise<void> {
     statsFolder.add(data, 'puglins').name('Puglins alive').disable().listen();
     statsFolder.add(data, 'fighting').name('in melee').disable().listen();
     statsFolder.add(data, 'moving').name('moving (matrices/frame)').disable().listen();
+    statsFolder.add(data, 'rotated').name('rotated (matrices/frame)').disable().listen();
     statsFolder.add(data, 'thinking').name('deciding/frame').disable().listen();
     statsFolder.add(data, 'changes').name('clip changes/frame').disable().listen();
     statsFolder.add(data, 'update').name('battle CPU (ms/frame)').disable().listen();
@@ -145,6 +144,7 @@ async function main(): Promise<void> {
       data.puglins = battle.stats.alive[1];
       data.fighting = battle.stats.fighting;
       data.moving = battle.stats.moving;
+      data.rotated = battle.stats.rotated;
       data.changes = battle.stats.changes;
       data.thinking = battle.stats.thinking;
       data.update = battle.stats.updateTime.toFixed(2);
